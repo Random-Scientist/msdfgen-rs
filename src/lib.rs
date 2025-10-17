@@ -8,10 +8,12 @@ mod math;
 pub mod path;
 mod utils;
 
+use euclid::Angle;
+use lyon_geom::Vector;
+
 use self::math::median;
 use self::path::ColorFlags;
 use self::utils::EdgeDistance;
-use lyon_path::math::{Angle, Vector};
 
 pub use self::path::{Contour, PathCollector};
 
@@ -25,7 +27,7 @@ pub fn compute_msdf(contours: &[Contour], dim: usize) -> Vec<Vec<(f32, f32, f32)
         g: f32,
         b: f32,
         med: f32,
-    };
+    }
     impl MultiDistance {
         fn new(v: f32) -> Self {
             Self {
@@ -46,7 +48,7 @@ pub fn compute_msdf(contours: &[Contour], dim: usize) -> Vec<Vec<(f32, f32, f32)
                 .map(|x| {
                     // We assume there is at least 1 contour
                     // If there isn't make everything magenta
-                    if contours.len() == 0 {
+                    if contours.is_empty() {
                         return (1.0f32, 0.0, 1.0);
                     }
 
@@ -57,8 +59,7 @@ pub fn compute_msdf(contours: &[Contour], dim: usize) -> Vec<Vec<(f32, f32, f32)
                     let mut pos_dist = -1e24f32;
                     let mut d = 1e24f32;
                     let mut winding = 0;
-                    let mut contour_distances = Vec::new();
-                    contour_distances.reserve(contours.len());
+                    let mut contour_distances = Vec::with_capacity(contours.len());
 
                     let mut sr = EdgeDistance::new();
                     let mut sg = EdgeDistance::new();
@@ -74,17 +75,17 @@ pub fn compute_msdf(contours: &[Contour], dim: usize) -> Vec<Vec<(f32, f32, f32)
 
                             if elem.color.contains(ColorFlags::R) && d < contour_min_r.dist {
                                 contour_min_r.dist = d;
-                                contour_min_r.edge = Some(&elem);
+                                contour_min_r.edge = Some(elem);
                                 contour_min_r.nearest_approach = na;
                             }
                             if elem.color.contains(ColorFlags::G) && d < contour_min_g.dist {
                                 contour_min_g.dist = d;
-                                contour_min_g.edge = Some(&elem);
+                                contour_min_g.edge = Some(elem);
                                 contour_min_g.nearest_approach = na;
                             }
                             if elem.color.contains(ColorFlags::B) && d < contour_min_b.dist {
                                 contour_min_b.dist = d;
-                                contour_min_b.edge = Some(&elem);
+                                contour_min_b.edge = Some(elem);
                                 contour_min_b.nearest_approach = na;
                             }
                         }
@@ -110,9 +111,9 @@ pub fn compute_msdf(contours: &[Contour], dim: usize) -> Vec<Vec<(f32, f32, f32)
                             winding = -windings[i];
                         }
 
-                        contour_min_r.to_pseudodistance(p);
-                        contour_min_g.to_pseudodistance(p);
-                        contour_min_b.to_pseudodistance(p);
+                        contour_min_r.mk_pseudodistance(p);
+                        contour_min_g.mk_pseudodistance(p);
+                        contour_min_b.mk_pseudodistance(p);
 
                         let med_min_dist = median(
                             contour_min_r.dist.distance,
@@ -142,9 +143,9 @@ pub fn compute_msdf(contours: &[Contour], dim: usize) -> Vec<Vec<(f32, f32, f32)
 
                     assert!(contour_distances.len() == windings.len());
 
-                    sr.to_pseudodistance(p);
-                    sg.to_pseudodistance(p);
-                    sb.to_pseudodistance(p);
+                    sr.mk_pseudodistance(p);
+                    sg.mk_pseudodistance(p);
+                    sb.mk_pseudodistance(p);
 
                     let mut mmsd = MultiDistance::new(-1e24);
                     if pos_dist >= 0.0 && pos_dist.abs() <= neg_dist.abs() {
@@ -195,7 +196,7 @@ pub fn compute_sdf(contours: &[Contour], dim: usize) -> Vec<Vec<f32>> {
             let py = (y as f32 + 0.5) * scale;
             (0..dim)
                 .map(|x| {
-                    if contours.len() == 0 {
+                    if contours.is_empty() {
                         return 1.0f32;
                     }
 
@@ -205,8 +206,7 @@ pub fn compute_sdf(contours: &[Contour], dim: usize) -> Vec<Vec<f32>> {
                     let mut neg_dist = 1e24f32;
                     let mut pos_dist = -1e24f32;
                     let mut winding = 0;
-                    let mut contour_distances = Vec::new();
-                    contour_distances.reserve(contours.len());
+                    let mut contour_distances = Vec::with_capacity(contours.len());
 
                     for (i, contour) in contours.iter().enumerate() {
                         let mut contour_min = EdgeDistance::new();
@@ -216,7 +216,7 @@ pub fn compute_sdf(contours: &[Contour], dim: usize) -> Vec<Vec<f32>> {
 
                             if d < contour_min.dist {
                                 contour_min.dist = d;
-                                contour_min.edge = Some(&elem);
+                                contour_min.edge = Some(elem);
                                 contour_min.nearest_approach = na;
                             }
                         }
@@ -271,12 +271,16 @@ pub fn compute_sdf(contours: &[Contour], dim: usize) -> Vec<Vec<f32>> {
 /// This function uses a simple technique,
 /// again based on Viktor's implementation.
 /// It is left as a separate step so you can implement more complex techniques as desired.
-pub fn recolor_contours(contours: Vec<Contour>, threshold: Angle, mut seed: u64) -> Vec<Contour> {
+pub fn recolor_contours(
+    contours: Vec<Contour>,
+    threshold: Angle<f32>,
+    mut seed: u64,
+) -> Vec<Contour> {
     let (threshold, _) = threshold.sin_cos();
 
     // Determine if a point is a corner, assuming i and o are incoming and
     // outgoing normalized direction vectors
-    let is_corner = |i: Vector, o: Vector| {
+    let is_corner = |i: Vector<f32>, o: Vector<f32>| {
         let d = i.dot(o); /* |i| |o| cos(t) */
         let c = i.cross(o).abs(); /* |i| |o| sin(t) */
 
@@ -375,7 +379,7 @@ pub fn recolor_contours(contours: Vec<Contour>, threshold: Angle, mut seed: u64)
                     for i in 0..n {
                         let i = (start + i) % n;
                         if spline + 1 < n_corners && corners[spline + 1] == i {
-                            spline = spline + 1;
+                            spline += 1;
                             color = color.switch_banned(&mut seed, initial_color);
                         }
                         c.elements[i].color = color;

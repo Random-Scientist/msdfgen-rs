@@ -1,410 +1,411 @@
-#[macro_use]
-extern crate glium;
+//TODO port to wgpu+winit
+fn main() {}
+// use euclid::Size2D;
+// use euclid::default::{Rect, Transform2D};
+// use glium::backend::Facade;
+// use glium::texture::Texture2d;
+// use glium::{Surface, glutin};
+// use lyon_path::math::{Angle, Point, Vector};
+// use msdfgen::path::PathSegment;
+// use msdfgen::{Contour, PathCollector, compute_msdf, recolor_contours};
+// use std::collections::HashMap;
+// use ttf_parser::Face;
 
-use euclid::Rect;
-use font_kit::font::Font;
-use glium::backend::Facade;
-use glium::texture::Texture2d;
-use glium::{glutin, Surface};
-use lyon_path::math::{Angle, Point, Vector};
-use lyon_path::Segment;
-use msdfgen::{compute_msdf, recolor_contours, Contour, PathCollector};
-use std::collections::HashMap;
+// const SDF_DIMENSION: u32 = 32;
 
-const SDF_DIMENSION: u32 = 32;
+// fn get_font() -> Face<'static> {
+//     let bytes = include_bytes!("testfont.ttf");
+//     ttf_parser::Face::parse(bytes, 0).unwrap()
+// }
+// /// Get a glyph ID for a character, its contours, and the typographic bounds for that glyph
+// /// TODO: this should also return font.origin() so we can offset the EM-space
+// /// computations by it. However, on freetype that always returns 0 so for the
+// /// moment we'll get away without it
+// fn get_glyph(font: &Face<'static>, chr: char) -> (u32, Vec<Contour>, Rect<f32>) {
+//     let id = font.glyph_index(chr).unwrap();
 
-fn get_font() -> Font {
-    use font_kit::family_name::FamilyName;
-    use font_kit::properties::{Properties, Style};
-    use font_kit::source::SystemSource;
-    let source = SystemSource::new();
+//     let mut builder = PathCollector::new();
 
-    source
-        .select_best_match(
-            &[FamilyName::Serif],
-            Properties::new().style(Style::Normal),
-        )
-        .expect("Failed to select a good font")
-        .load()
-        .unwrap()
-}
+//     let bounds = font.outline_glyph(id, &mut builder).unwrap();
 
-/// Get a glyph ID for a character, its contours, and the typographic bounds for that glyph
-/// TODO: this should also return font.origin() so we can offset the EM-space
-/// computations by it. However, on freetype that always returns 0 so for the
-/// moment we'll get away without it
-fn get_glyph(font: &Font, chr: char) -> (u32, Vec<Contour>, Rect<f32>) {
-    use font_kit::hinting::HintingOptions;
-    use lyon_path::builder::FlatPathBuilder;
-    let glyph_id = font.glyph_for_char(chr).unwrap();
+//     (
+//         id.0.into(),
+//         builder.finish(),
+//         Rect::new(
+//             Point::new(bounds.x_min as f32, bounds.y_min as f32),
+//             Size2D::new(bounds.x_max as f32, bounds.y_max as f32),
+//         ),
+//     )
+// }
 
-    let mut builder = PathCollector::new();
-    font.outline(glyph_id, HintingOptions::None, &mut builder)
-        .unwrap();
+// /// Rescale contours so they fit in the provided rectangle.
+// /// Returns the scaled contours along with the transformation used to rescale the contours
+// fn rescale_contours(
+//     mut contours: Vec<Contour>,
+//     initial_bounds: Rect<f32>,
+//     bounds: Rect<f32>,
+// ) -> (Vec<Contour>, Transform2D<f32>) {
+//     let initial_scale = initial_bounds.size.width.max(initial_bounds.size.height);
+//     let bounds_scale = bounds.size.width.max(bounds.size.height);
+//     let transformation =
+//         euclid::Transform2D::translation(-initial_bounds.origin.x, -initial_bounds.origin.y)
+//             .then_scale(bounds_scale / initial_scale, bounds_scale / initial_scale)
+//             .then_translate(bounds.origin.to_vector());
+//     for contour in &mut contours {
+//         for elem in &mut contour.elements {
+//             elem.segment = match elem.segment {
+//                 PathSegment::Line(s) => PathSegment::Line(s.transformed(&transformation)),
+//                 PathSegment::Quadratic(s) => PathSegment::Quadratic(s.transformed(&transformation)),
+//                 PathSegment::Cubic(s) => PathSegment::Cubic(s.transformed(&transformation)),
+//                 PathSegment::Arc(s) => PathSegment::Arc(lyon_geom::Arc {
+//                     center: transformation.transform_point(s.center),
+//                     ..s
+//                 }),
+//             }
+//         }
+//     }
+//     (contours, transformation)
+// }
 
-    (
-        glyph_id,
-        builder.build(),
-        font.typographic_bounds(glyph_id).unwrap(),
-    )
-}
+// #[derive(Copy, Clone)]
+// struct Vertex2D {
+//     position: [f32; 2],
+//     uv: [f32; 2],
+//     color: [f32; 3],
+// }
 
-/// Rescale contours so they fit in the provided rectangle.
-/// Returns the scaled contours along with the transformation used to rescale the contours
-fn rescale_contours(
-    mut contours: Vec<Contour>,
-    initial_bounds: Rect<f32>,
-    bounds: lyon_path::math::Rect,
-) -> (Vec<Contour>, euclid::Transform2D<f32>) {
-    let initial_scale = initial_bounds.size.width.max(initial_bounds.size.height);
-    let bounds_scale = bounds.size.width.max(bounds.size.height);
-    let transformation =
-        euclid::Transform2D::create_translation(-initial_bounds.origin.x, -initial_bounds.origin.y)
-            .post_scale(bounds_scale / initial_scale, bounds_scale / initial_scale)
-            .post_translate(bounds.origin.to_vector());
-    for contour in &mut contours {
-        for mut elem in &mut contour.elements {
-            elem.segment = match elem.segment {
-                Segment::Line(s) => Segment::Line(s.transform(&transformation)),
-                Segment::Quadratic(s) => Segment::Quadratic(s.transform(&transformation)),
-                Segment::Cubic(s) => Segment::Cubic(s.transform(&transformation)),
-                Segment::Arc(s) => Segment::Arc(lyon_geom::Arc {
-                    center: transformation.transform_point(&s.center),
-                    ..s
-                }),
-            }
-        }
-    }
-    (contours, transformation)
-}
+// glium::implement_vertex!(Vertex2D, position, uv, color);
 
-#[derive(Copy, Clone)]
-struct Vertex2D {
-    position: [f32; 2],
-    uv: [f32; 2],
-    color: [f32; 3],
-}
+// /// All the information required to render a character from a string
+// #[derive(Clone, Copy, Debug)]
+// struct RenderChar {
+//     /// The position of the vertices
+//     verts: Rect<f32>,
+//     /// The UV coordinates of the vertices
+//     uv: Rect<f32>,
+// }
 
-glium::implement_vertex!(Vertex2D, position, uv, color);
+// impl RenderChar {
+//     fn verts(&self) -> [Vertex2D; 4] {
+//         macro_rules! vertex {
+//             ($p: expr, $t: expr) => {{
+//                 let color = [rand::random(), rand::random(), rand::random()];
+//                 let p = $p;
+//                 let t = $t;
+//                 Vertex2D {
+//                     position: [p.x, p.y],
+//                     uv: [t.x, t.y],
+//                     color: color.clone(),
+//                 }
+//             }};
+//         }
+//         let b = self.verts.to_box2d();
+//         let bl = b.min;
+//         let mut br = b.min;
+//         br.x = b.max.x;
+//         let tr = b.max;
+//         let mut tl = b.max;
+//         tl.x = b.min.x;
 
-/// All the information required to render a character from a string
-#[derive(Clone, Copy, Debug)]
-struct RenderChar {
-    /// The position of the vertices
-    verts: Rect<f32>,
-    /// The UV coordinates of the vertices
-    uv: Rect<f32>,
-}
+//         [
+//             vertex!(self.verts.min(), self.uv.bottom_left()),
+//             vertex!(self.verts.origin, self.uv.origin),
+//             vertex!(self.verts.bottom_right(), self.uv.bottom_right()),
+//             vertex!(self.verts.top_right(), self.uv.top_right()),
+//         ]
+//     }
+// }
 
-impl RenderChar {
-    fn verts(&self) -> [Vertex2D; 4] {
-        macro_rules! vertex {
-            ($p: expr, $t: expr) => {{
-                let color = [rand::random(), rand::random(), rand::random()];
-                let p = $p;
-                let t = $t;
-                Vertex2D {
-                    position: [p.x, p.y],
-                    uv: [t.x, t.y],
-                    color: color.clone(),
-                }
-            }};
-        }
+// /// The information about a glyph that gets cached in the font atlas.
+// /// Since every letter has a different scaling factor to make maximum use of the MSDF pixels,
+// /// we need to keep track of the offset and scale from font unit space. This
+// /// information is required when positioning characters to get the right scale
+// /// and positioning for the geometry.
+// #[derive(Clone, Copy, Debug)]
+// struct GlyphInformation {
+//     id: u32,
+//     /// Where it actually is in the atlas texture
+//     uv: Rect<f32>,
+//     /// The font-space rectangle covered by the uv rectangle
+//     font_units: Rect<f32>,
+// }
 
-        [
-            vertex!(self.verts.bottom_left(), self.uv.bottom_left()),
-            vertex!(self.verts.origin, self.uv.origin),
-            vertex!(self.verts.bottom_right(), self.uv.bottom_right()),
-            vertex!(self.verts.top_right(), self.uv.top_right()),
-        ]
-    }
-}
+// struct FontAtlas<'font, 'facade, T: Facade> {
+//     /// Used when a string requires new glyphs
+//     font: &'font Font,
+//     /// Reference to the facade that is when we need to grow the atlas texture
+//     facade: &'facade T,
+//     /// The scale of each character
+//     char_dim: u32,
+//     /// The current dimensions of the texture
+//     alloced_size: u32,
+//     /// The x coordinate at which to place the next character,
+//     next_x: u32,
+//     /// The y coordinate at which to place the next character,
+//     next_y: u32,
+//     /// The actual backing texture that includes all of the distances.
+//     /// All the distance values should be roughly in [-1, 1]
+//     tex: Texture2d,
+//     /// Texture coordinates of every character we know about
+//     /// Technically, this should probably use glyph ids as keys
+//     locations: HashMap<char, GlyphInformation>,
+// }
 
-/// The information about a glyph that gets cached in the font atlas.
-/// Since every letter has a different scaling factor to make maximum use of the MSDF pixels,
-/// we need to keep track of the offset and scale from font unit space. This
-/// information is required when positioning characters to get the right scale
-/// and positioning for the geometry.
-#[derive(Clone, Copy, Debug)]
-struct GlyphInformation {
-    id: u32,
-    /// Where it actually is in the atlas texture
-    uv: Rect<f32>,
-    /// The font-space rectangle covered by the uv rectangle
-    font_units: Rect<f32>,
-}
+// impl<'font, 'facade, T: Facade> FontAtlas<'font, 'facade, T> {
+//     /// Create a new atlas.
+//     fn build(
+//         char_dim: u32,
+//         font: &'font Font,
+//         facade: &'facade T,
+//     ) -> Result<Self, glium::texture::TextureCreationError> {
+//         use glium::texture::{MipmapsOption, UncompressedFloatFormat};
+//         let alloced_size = char_dim * 16;
 
-struct FontAtlas<'font, 'facade, T: Facade> {
-    /// Used when a string requires new glyphs
-    font: &'font Font,
-    /// Reference to the facade that is when we need to grow the atlas texture
-    facade: &'facade T,
-    /// The scale of each character
-    char_dim: u32,
-    /// The current dimensions of the texture
-    alloced_size: u32,
-    /// The x coordinate at which to place the next character,
-    next_x: u32,
-    /// The y coordinate at which to place the next character,
-    next_y: u32,
-    /// The actual backing texture that includes all of the distances.
-    /// All the distance values should be roughly in [-1, 1]
-    tex: Texture2d,
-    /// Texture coordinates of every character we know about
-    /// Technically, this should probably use glyph ids as keys
-    locations: HashMap<char, GlyphInformation>,
-}
+//         let tex = Texture2d::empty_with_format(
+//             facade,
+//             UncompressedFloatFormat::F16F16F16,
+//             MipmapsOption::NoMipmap,
+//             alloced_size,
+//             alloced_size,
+//         )?;
 
-impl<'font, 'facade, T: Facade> FontAtlas<'font, 'facade, T> {
-    /// Create a new atlas.
-    fn build(
-        char_dim: u32,
-        font: &'font Font,
-        facade: &'facade T,
-    ) -> Result<Self, glium::texture::TextureCreationError> {
-        use glium::texture::{MipmapsOption, UncompressedFloatFormat};
-        let alloced_size = char_dim * 16;
+//         println!("Allocated {0:?}x{0:?} texture", alloced_size);
 
-        let tex = Texture2d::empty_with_format(
-            facade,
-            UncompressedFloatFormat::F16F16F16,
-            MipmapsOption::NoMipmap,
-            alloced_size,
-            alloced_size,
-        )?;
+//         Ok(Self {
+//             locations: Default::default(),
+//             next_x: 0,
+//             next_y: 0,
+//             font,
+//             facade,
+//             char_dim,
+//             tex,
+//             alloced_size,
+//         })
+//     }
 
-        println!("Allocated {0:?}x{0:?} texture", alloced_size);
+//     /// Get the glyph information for a character, either pulling them from the cache
+//     /// or generating the MSDF
+//     fn character_information(&mut self, c: char) -> GlyphInformation {
+//         if !self.locations.contains_key(&c) {
+//             const INIT_UV_BORDER: f32 = 0.2;
+//             const UV_BORDER: f32 = 0.1;
+//             let (glyph_id, contours, font_unit_rect) = get_glyph(self.font, c);
+//             let uv_rect = Rect::new(
+//                 Point::new(INIT_UV_BORDER, INIT_UV_BORDER),
+//                 euclid::TypedSize2D::new(1.0 - 2.0 * INIT_UV_BORDER, 1.0 - 2.0 * INIT_UV_BORDER),
+//             );
+//             let (contours, transform) = rescale_contours(contours, font_unit_rect, uv_rect);
 
-        Ok(Self {
-            locations: Default::default(),
-            next_x: 0,
-            next_y: 0,
-            font,
-            facade,
-            char_dim,
-            tex,
-            alloced_size,
-        })
-    }
+//             // Build the contours and upload thfont_unit to the texture
+//             let contours = recolor_contours(contours, Angle::degrees(3.0), 1);
+//             let msdf = compute_msdf(&contours, self.char_dim as usize);
+//             self.tex.write(
+//                 glium::Rect {
+//                     left: self.next_x,
+//                     bottom: self.next_y,
+//                     width: self.char_dim,
+//                     height: self.char_dim,
+//                 },
+//                 msdf,
+//             );
 
-    /// Get the glyph information for a character, either pulling them from the cache
-    /// or generating the MSDF
-    fn character_information(&mut self, c: char) -> GlyphInformation {
-        if !self.locations.contains_key(&c) {
-            const INIT_UV_BORDER: f32 = 0.2;
-            const UV_BORDER: f32 = 0.1;
-            let (glyph_id, contours, font_unit_rect) = get_glyph(self.font, c);
-            let uv_rect = Rect::new(
-                Point::new(INIT_UV_BORDER, INIT_UV_BORDER),
-                euclid::TypedSize2D::new(1.0 - 2.0 * INIT_UV_BORDER, 1.0 - 2.0 * INIT_UV_BORDER),
-            );
-            let (contours, transform) = rescale_contours(contours, font_unit_rect, uv_rect);
+//             // Compute the final positions of the font_unit and uv rectangles
+//             // transform should just be a scale and transform, easily invertable
+//             let inv_transform = transform.inverse().unwrap();
+//             let uv_rect = Rect::new(
+//                 Point::new(UV_BORDER, UV_BORDER),
+//                 euclid::TypedSize2D::new(1.0 - 2.0 * UV_BORDER, 1.0 - 2.0 * UV_BORDER),
+//             );
+//             let font_unit_rect = inv_transform.transform_rect(&uv_rect);
+//             let alloc_scale = 1.0 / self.alloced_size as f32;
+//             let uv_rect = uv_rect.scale(
+//                 self.char_dim as f32 * alloc_scale,
+//                 self.char_dim as f32 * alloc_scale,
+//             );
+//             let uv_rect = uv_rect
+//                 .translate(&(Vector::new(self.next_x as f32, self.next_y as f32) * alloc_scale));
 
-            // Build the contours and upload thfont_unit to the texture
-            let contours = recolor_contours(contours, Angle::degrees(3.0), 1);
-            let msdf = compute_msdf(&contours, self.char_dim as usize);
-            self.tex.write(
-                glium::Rect {
-                    left: self.next_x,
-                    bottom: self.next_y,
-                    width: self.char_dim,
-                    height: self.char_dim,
-                },
-                msdf,
-            );
+//             // Make sure to advance to the next character slot
+//             self.next_x += self.char_dim;
+//             if self.next_x == self.alloced_size {
+//                 self.next_x = 0;
+//                 self.next_y += self.char_dim;
+//             }
 
-            // Compute the final positions of the font_unit and uv rectangles
-            // transform should just be a scale and transform, easily invertable
-            let inv_transform = transform.inverse().unwrap();
-            let uv_rect = Rect::new(
-                Point::new(UV_BORDER, UV_BORDER),
-                euclid::TypedSize2D::new(1.0 - 2.0 * UV_BORDER, 1.0 - 2.0 * UV_BORDER),
-            );
-            let font_unit_rect = inv_transform.transform_rect(&uv_rect);
-            let alloc_scale = 1.0 / self.alloced_size as f32;
-            let uv_rect = uv_rect.scale(
-                self.char_dim as f32 * alloc_scale,
-                self.char_dim as f32 * alloc_scale,
-            );
-            let uv_rect = uv_rect
-                .translate(&(Vector::new(self.next_x as f32, self.next_y as f32) * alloc_scale));
+//             let tr = GlyphInformation {
+//                 id: glyph_id,
+//                 uv: uv_rect,
+//                 font_units: font_unit_rect,
+//             };
 
-            // Make sure to advance to the next character slot
-            self.next_x += self.char_dim;
-            if self.next_x == self.alloced_size {
-                self.next_x = 0;
-                self.next_y += self.char_dim;
-            }
+//             self.locations.insert(c, tr);
+//         }
+//         self.locations[&c]
+//     }
 
-            let tr = GlyphInformation {
-                id: glyph_id,
-                uv: uv_rect,
-                font_units: font_unit_rect,
-            };
+//     /// Layout a string.
+//     /// TODO: hide things with interior mutability so that this doesn't take &mut
+//     fn layout_string(&mut self, start: Point, size_in_points: f32, s: &str) -> Vec<RenderChar> {
+//         let metrics = self.font.metrics();
+//         eprintln!("{:?}", metrics);
+//         let mut tr = Vec::new();
+//         let scale = size_in_points / metrics.units_per_em as f32;
+//         let mut transform = euclid::Transform2D::create_scale(scale, scale)
+//             .post_translate(start.to_vector() + Vector::new(0.0, metrics.descent * -scale));
+//         for c in s.chars() {
+//             let information = self.character_information(c);
+//             tr.push(RenderChar {
+//                 verts: transform.transform_rect(&information.font_units),
+//                 uv: information.uv,
+//             });
+//             transform = transform.post_translate(
+//                 self.font
+//                     .advance(information.id)
+//                     .unwrap_or(Vector::new(0.0, 0.0))
+//                     * scale,
+//             );
+//         }
 
-            self.locations.insert(c, tr);
-        }
-        self.locations[&c]
-    }
+//         tr
+//     }
+// }
 
-    /// Layout a string.
-    /// TODO: hide things with interior mutability so that this doesn't take &mut
-    fn layout_string(&mut self, start: Point, size_in_points: f32, s: &str) -> Vec<RenderChar> {
-        let metrics = self.font.metrics();
-        eprintln!("{:?}", metrics);
-        let mut tr = Vec::new();
-        let scale = size_in_points / metrics.units_per_em as f32;
-        let mut transform = euclid::Transform2D::create_scale(scale, scale)
-            .post_translate(start.to_vector() + Vector::new(0.0, metrics.descent * -scale));
-        for c in s.chars() {
-            let information = self.character_information(c);
-            tr.push(RenderChar {
-                verts: transform.transform_rect(&information.font_units),
-                uv: information.uv,
-            });
-            transform = transform.post_translate(
-                self.font
-                    .advance(information.id)
-                    .unwrap_or(Vector::new(0.0, 0.0)) * scale,
-            );
-        }
+// fn main() {
+//     let mut events_loop = glutin::EventsLoop::new();
+//     let mut window_size: glutin::dpi::LogicalSize = (512u32, 512).into();
+//     let window = glutin::WindowBuilder::new().with_dimensions(window_size);
+//     let context = glutin::ContextBuilder::new();
+//     let context = context.with_gl_profile(glutin::GlProfile::Core);
+//     let context = context.with_gl_debug_flag(true);
+//     let display =
+//         glium::Display::new(window, context, &events_loop).expect("Error creating GL display");
+//     let hidpi_factor = display.gl_window().window().get_hidpi_factor() as f32;
+//     println!("{:?}", hidpi_factor);
 
-        tr
-    }
-}
+//     let font = get_font();
 
-fn main() {
-    let mut events_loop = glutin::EventsLoop::new();
-    let mut window_size: glutin::dpi::LogicalSize = (512u32, 512).into();
-    let window = glutin::WindowBuilder::new().with_dimensions(window_size);
-    let context = glutin::ContextBuilder::new();
-    let context = context.with_gl_profile(glutin::GlProfile::Core);
-    let context = context.with_gl_debug_flag(true);
-    let display =
-        glium::Display::new(window, context, &events_loop).expect("Error creating GL display");
-    let hidpi_factor = display.gl_window().window().get_hidpi_factor() as f32;
-    println!("{:?}", hidpi_factor);
+//     let bg_shader = program!(&display,
+//         410 => {
+//             vertex: r#"
+// #version 410
+// in vec2 position;
+// in vec2 uv;
+// in vec3 color;
+// out vec3 cross_color;
+// out vec2 cross_uv;
 
-    let font = get_font();
+// uniform mat4 transform;
 
-    let bg_shader = program!(&display,
-        410 => {
-            vertex: r#"
-#version 410
-in vec2 position;
-in vec2 uv;
-in vec3 color;
-out vec3 cross_color;
-out vec2 cross_uv;
+// void main() {
+//     gl_Position = vec4(position, 0.0, 1.0) * transform;
+//     cross_color = color;
+//     cross_uv = uv;
+// }"#,
+//             fragment: r#"
+// #version 410
 
-uniform mat4 transform;
+// uniform sampler2D tex;
 
-void main() {
-    gl_Position = vec4(position, 0.0, 1.0) * transform;
-    cross_color = color;
-    cross_uv = uv;
-}"#,
-            fragment: r#"
-#version 410
+// in vec2 cross_uv;
+// in vec3 cross_color;
+// out vec4 color;
 
-uniform sampler2D tex;
+// #define RADIUS 0.05
 
-in vec2 cross_uv;
-in vec3 cross_color;
-out vec4 color;
+// float band_around(float center, float r, float f) {
+//     return smoothstep(center - r, center, f) -
+//            smoothstep(center, center + r, f);
+// }
 
-#define RADIUS 0.05
+// float remap(float f) {
+//     return smoothstep(-RADIUS, RADIUS, f);
+// }
 
-float band_around(float center, float r, float f) {
-    return smoothstep(center - r, center, f) -
-           smoothstep(center, center + r, f);
-}
+// void main() {
+//     vec3 x = texture(tex, cross_uv).rgb;
+//     float v = max(min(x.r, x.g), min(max(x.r, x.g), x.b));
+//     float c = remap(v);
+//     color = vec4(cross_color.rgb, c);
+// }"#,
+//         },
+//     )
+//     .unwrap();
 
-float remap(float f) {
-    return smoothstep(-RADIUS, RADIUS, f);
-}
+//     let mut font_atlas =
+//         FontAtlas::build(SDF_DIMENSION, &font, &display).expect("Failed to build font atlas");
+//     let layout = font_atlas.layout_string(
+//         Point::new(72.0, 72.0),
+//         16.0,
+//         // ":{<~The lazy cat jumps over the xenophobic dog, yodeling~>}",
+//         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()`~'\";/.,<>?",
+//     );
+//     let mut vertices = Vec::with_capacity(layout.len() * 4);
+//     let mut indices = Vec::with_capacity(layout.len() * 5);
+//     for c in &layout {
+//         let base = vertices.len() as u16;
+//         vertices.extend_from_slice(&c.verts());
+//         indices.push(base);
+//         indices.push(base + 1);
+//         indices.push(base + 2);
+//         indices.push(base + 3);
+//         indices.push(std::u16::MAX);
+//     }
 
-void main() {
-    vec3 x = texture(tex, cross_uv).rgb;
-    float v = max(min(x.r, x.g), min(max(x.r, x.g), x.b));
-    float c = remap(v);
-    color = vec4(cross_color.rgb, c);
-}"#,
-        },
-    )
-    .unwrap();
+//     let tex_vbo = glium::VertexBuffer::immutable(&display, &vertices).unwrap();
 
-    let mut font_atlas =
-        FontAtlas::build(SDF_DIMENSION, &font, &display).expect("Failed to build font atlas");
-    let layout = font_atlas.layout_string(
-        Point::new(72.0, 72.0),
-        16.0,
-        // ":{<~The lazy cat jumps over the xenophobic dog, yodeling~>}",
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()`~'\";/.,<>?",
-    );
-    let mut vertices = Vec::with_capacity(layout.len() * 4);
-    let mut indices = Vec::with_capacity(layout.len() * 5);
-    for c in &layout {
-        let base = vertices.len() as u16;
-        vertices.extend_from_slice(&c.verts());
-        indices.push(base);
-        indices.push(base + 1);
-        indices.push(base + 2);
-        indices.push(base + 3);
-        indices.push(std::u16::MAX);
-    }
+//     let index_buffer = glium::index::IndexBuffer::new(
+//         &display,
+//         glium::index::PrimitiveType::TriangleStrip,
+//         &indices,
+//     )
+//     .unwrap();
 
-    let tex_vbo = glium::VertexBuffer::immutable(&display, &vertices).unwrap();
+//     let mut closed = false;
+//     while !closed {
+//         let params = glium::DrawParameters {
+//             blend: glium::Blend::alpha_blending(),
+//             primitive_restart_index: true,
+//             ..Default::default()
+//         };
 
-    let index_buffer = glium::index::IndexBuffer::new(
-        &display,
-        glium::index::PrimitiveType::TriangleStrip,
-        &indices,
-    )
-    .unwrap();
+//         // This transform converts from point-space, with (0, 0) in the bottom left corner
+//         // to NDC
+//         // The final 96.0 / 72.0 scaling is because virtual DPI is based on 96
+//         // DPI while points are 1/72 of an inch
+//         let transform = euclid::Transform3D::create_translation(-1.0, -1.0, 0.0)
+//             .pre_scale(
+//                 2.0 / (window_size.width as f32),
+//                 2.0 / (window_size.height as f32),
+//                 1.0,
+//             )
+//             .pre_scale(96.0 / 72.0, 96.0 / 72.0, 1.0);
 
-    let mut closed = false;
-    while !closed {
-        let params = glium::DrawParameters {
-            blend: glium::Blend::alpha_blending(),
-            primitive_restart_index: true,
-            ..Default::default()
-        };
+//         let mut target = display.draw();
+//         target.clear_color(0.0, 0.0, 0.0, 1.0);
 
-        // This transform converts from point-space, with (0, 0) in the bottom left corner
-        // to NDC
-        // The final 96.0 / 72.0 scaling is because virtual DPI is based on 96
-        // DPI while points are 1/72 of an inch
-        let transform = euclid::Transform3D::create_translation(-1.0, -1.0, 0.0)
-            .pre_scale(2.0 / (window_size.width as f32), 2.0 / (window_size.height as f32), 1.0)
-            .pre_scale(96.0 / 72.0, 96.0 / 72.0, 1.0);
+//         let uniforms = uniform!(
+//             tex: font_atlas.tex.sampled(),
+//             transform: transform.to_column_arrays(),
+//         );
 
-        let mut target = display.draw();
-        target.clear_color(0.0, 0.0, 0.0, 1.0);
+//         target
+//             .draw(&tex_vbo, &index_buffer, &bg_shader, &uniforms, &params)
+//             .unwrap();
 
-        let uniforms = uniform!(
-            tex: font_atlas.tex.sampled(),
-            transform: transform.to_column_arrays(),
-        );
+//         target.finish().unwrap();
 
-        target
-            .draw(&tex_vbo, &index_buffer, &bg_shader, &uniforms, &params)
-            .unwrap();
-
-        target.finish().unwrap();
-
-        events_loop.poll_events(|ev| match ev {
-            glutin::Event::WindowEvent { event, .. } => match event {
-                glutin::WindowEvent::CloseRequested => closed = true,
-                glutin::WindowEvent::KeyboardInput { input, .. } => match input.virtual_keycode {
-                    _ => {}
-                },
-                glutin::WindowEvent::Resized(new_size) => {
-                    window_size = new_size;
-                }
-                _ => {}
-            },
-            _ => {}
-        })
-    }
-}
+//         events_loop.poll_events(|ev| match ev {
+//             glutin::Event::WindowEvent { event, .. } => match event {
+//                 glutin::WindowEvent::CloseRequested => closed = true,
+//                 glutin::WindowEvent::KeyboardInput { input, .. } => match input.virtual_keycode {
+//                     _ => {}
+//                 },
+//                 glutin::WindowEvent::Resized(new_size) => {
+//                     window_size = new_size;
+//                 }
+//                 _ => {}
+//             },
+//             _ => {}
+//         })
+//     }
+// }

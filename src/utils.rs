@@ -1,8 +1,8 @@
 //! Utilities for the SDF computations
 
-use crate::path::PathElement;
-use lyon_path::math::Vector;
+use lyon_geom::Vector;
 
+use crate::path::PathElement;
 /// Represents a distance to an edge segment
 #[derive(Copy, Clone)]
 pub(crate) struct EdgeDistance<'a> {
@@ -21,10 +21,9 @@ impl<'a> EdgeDistance<'a> {
         }
     }
 
-    pub(crate) fn to_pseudodistance(&mut self, p: Vector) {
-        match self.edge {
-            Some(edge) => self.dist = edge.to_psuedodistance(self.dist, p, self.nearest_approach),
-            None => {}
+    pub(crate) fn mk_pseudodistance(&mut self, p: Vector<f32>) {
+        if let Some(edge) = self.edge {
+            self.dist = edge.mk_pseudodistance(self.dist, p, self.nearest_approach)
         }
     }
 }
