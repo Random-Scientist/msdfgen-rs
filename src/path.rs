@@ -3,6 +3,7 @@
 use std::mem;
 
 use crate::utils::AugmentedDistance;
+use euclid::default::{Box2D, Rect, Transform2D};
 use lyon_geom::{
     Arc, CubicBezierSegment, LineSegment, Point, QuadraticBezierSegment, Size, Vector,
 };
@@ -112,6 +113,11 @@ impl Contour {
             }
         }
         .signum()
+    }
+    pub fn transform(&mut self, transform: &Transform2D<f32>) {
+        self.elements
+            .iter_mut()
+            .for_each(|v| v.transform(transform));
     }
 }
 
@@ -308,6 +314,31 @@ impl PathElement {
             dist
         }
     }
+    pub fn transform(&mut self, xform: &Transform2D<f32>) {
+        macro_rules! transformed {
+            ($val:ident) => {
+                *$val = $val.transformed(xform)
+            };
+        }
+        match &mut self.segment {
+            PathSegment::Line(line_segment) => transformed!(line_segment),
+            PathSegment::Quadratic(quadratic_bezier_segment) => {
+                transformed!(quadratic_bezier_segment)
+            }
+            PathSegment::Cubic(cubic_bezier_segment) => transformed!(cubic_bezier_segment),
+            PathSegment::Arc(arc) => todo!(),
+        }
+    }
+    pub fn bounds(&self) -> Box2D<f32> {
+        match self.segment {
+            PathSegment::Line(line_segment) => line_segment.bounding_box(),
+            PathSegment::Quadratic(quadratic_bezier_segment) => {
+                quadratic_bezier_segment.bounding_box()
+            }
+            PathSegment::Cubic(cubic_bezier_segment) => cubic_bezier_segment.bounding_box(),
+            PathSegment::Arc(a) => a.bounding_box(),
+        }
+    }
 }
 
 /// This is a path collector which produces our custom contour type.
@@ -347,7 +378,7 @@ impl ttf_parser::OutlineBuilder for PathCollector {
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        let p = self.pen + Size::new(x, y);
+        let p = Point::new(x, y);
 
         self.elements
             .push(PathElement::new_white(PathSegment::Line(LineSegment {
@@ -359,8 +390,8 @@ impl ttf_parser::OutlineBuilder for PathCollector {
 
     fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
         let from = self.pen;
-        let ctrl = self.pen + Size::new(x1, y1);
-        let to = self.pen + Size::new(x, y);
+        let ctrl = Point::new(x1, y1);
+        let to = Point::new(x, y);
         self.pen = to;
         self.elements
             .push(PathElement::new_white(PathSegment::Quadratic(
@@ -370,9 +401,9 @@ impl ttf_parser::OutlineBuilder for PathCollector {
 
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
         let from = self.pen;
-        let ctrl1 = self.pen + Size::new(x2, y2);
-        let ctrl2 = self.pen + Size::new(x1, y1);
-        let to = self.pen + Size::new(x, y);
+        let ctrl1 = Point::new(x1, y1);
+        let ctrl2 = Point::new(x2, y2);
+        let to = Point::new(x, y);
         self.pen = to;
         self.elements
             .push(PathElement::new_white(PathSegment::Cubic(

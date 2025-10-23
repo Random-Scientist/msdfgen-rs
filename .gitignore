@@ -1,2 +1,5 @@
 /target
 **/*.rs.bk
+**/*.ttf
+**/*.png
+**/*.DS_Store

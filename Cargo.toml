@@ -10,5 +10,5 @@ euclid = "0.22.11"
 bitflags = "2.9.4"
 
 [dev-dependencies]
-glium = "0.36"
 rand = "0.9"
+image = "0.25.8"
