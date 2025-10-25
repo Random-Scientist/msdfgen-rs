@@ -2,11 +2,14 @@ use std::{array::from_fn, env};
 
 use euclid::{
     Angle,
+    approxord::{max, min},
     default::{Box2D, Transform2D},
 };
 use image::{ColorType, Pixel, Rgb, save_buffer, save_buffer_with_format};
-use lyon_geom::Point;
-use msdfgen::{Contour, PathCollector, compute_msdf, compute_msdf_for, recolor_contours};
+use lyon_geom::{LineSegment, Point};
+use msdfgen::{
+    Contour, PathCollector, compute_msdf, compute_msdf_for, path::PathSegment, recolor_contours,
+};
 use ttf_parser::{Face, Rect};
 
 fn get_font() -> Face<'static> {
@@ -18,12 +21,23 @@ fn get_glyph(font: &Face<'static>, chr: char) -> (Vec<Contour>, Box2D<f32>) {
     let id = font.glyph_index(chr).unwrap();
 
     let mut builder = PathCollector::new();
-    let rect = font.outline_glyph(id, &mut builder).unwrap();
-    let rect = Box2D::new(
-        Point::new(rect.x_min as f32, rect.y_min as f32),
-        Point::new(rect.x_max as f32, rect.y_max as f32),
-    );
-    (builder.finish(), rect)
+    let _rect = font.outline_glyph(id, &mut builder).unwrap();
+    let contours = builder.finish();
+    let mut it = contours.iter().flat_map(|v| v.elements.iter());
+    let init = it.next().map(|v| v.bounds()).unwrap_or(Box2D::zero());
+
+    let rect = it.fold(init, |a, b| union(a, b.bounds()));
+    // let rect = Box2D::new(
+    //     Point::new(rect.x_min as f32, rect.y_min as f32),
+    //     Point::new(rect.x_max as f32, rect.y_max as f32),
+    // );
+    (contours, rect)
+}
+fn union(a: Box2D<f32>, b: Box2D<f32>) -> Box2D<f32> {
+    Box2D {
+        min: Point::new(min(a.min.x, b.min.x), min(a.min.y, b.min.y)),
+        max: Point::new(max(a.max.x, b.max.x), max(a.max.y, b.max.y)),
+    }
 }
 
 pub fn main() {
@@ -71,7 +85,9 @@ pub fn main() {
     // dbg!(min_col, max_col);
 
     // rendered.save("rendered.png").unwrap();
-    let s = make_glyph(c, 1000);
+    let s = make_glyph(c, 300);
+
+    dbg!(&s.horizontal_lines, &s.vertical_lines);
     let rendered = image::ImageBuffer::from_fn(s.dims.0, s.dims.1, |x, y| {
         let y = (s.dims.1 - 1) - y;
         let pix = s.buf[x as usize + y as usize * s.dims.0 as usize];
@@ -103,6 +119,37 @@ pub struct LineInfo {
 fn make_glyph(character: char, max_dim: u32) -> GlyphAndInfo {
     let (contour, glyph_bounds) = get_glyph(&get_font(), character);
     dbg!(glyph_bounds);
+    let eps = 0.001;
+    let (horiz, vert) = contour
+        .iter()
+        .flat_map(|v| v.elements.iter())
+        .filter_map(|v| {
+            if let PathSegment::Line(line) = v.segment
+                && ((line.to - line.from)
+                    .abs()
+                    .lower_than(euclid::Vector2D::splat(eps)))
+                .any()
+            {
+                Some(line)
+            } else {
+                None
+            }
+        })
+        .partition::<Vec<_>, _>(|v| {
+            let diff = v.to - v.from;
+            diff.x < eps
+        });
+    let h = |vec: Vec<LineSegment<f32>>, horiz| -> Vec<LineInfo> {
+        vec.into_iter()
+            .map(|v| LineInfo {
+                axis_pos: if horiz { v.from.x } else { v.from.y },
+                len: v.length(),
+            })
+            .collect()
+    };
+    let horizontal_lines = h(horiz, true);
+    let vertical_lines = h(vert, false);
+
     let mut contours = recolor_contours(contour, Angle::degrees(3.0), 1);
     let height = glyph_bounds.height();
     let width = glyph_bounds.width();
@@ -127,8 +174,15 @@ fn make_glyph(character: char, max_dim: u32) -> GlyphAndInfo {
         (max_dim as f32 * short_side).ceil() as u32
     };
     dbg!(v_size, h_size);
-    let transform =
-        Transform2D::translation(-glyph_bounds.min.x, -glyph_bounds.min.y).then_scale(scale, scale);
+    let scaled_in = scale * 0.90;
+
+    let transform = Transform2D::translation(-glyph_bounds.min.x, -glyph_bounds.min.y)
+        .then_scale(scaled_in, scaled_in)
+        .then_translate(if tall {
+            euclid::Vector2D::new(0.05 * short_side, 0.05)
+        } else {
+            euclid::Vector2D::new(0.05, 0.05 * short_side)
+        });
 
     let outscale = 1.0 / max_dim as f32;
     contours.iter_mut().for_each(|v| v.transform(&transform));
@@ -144,7 +198,7 @@ fn make_glyph(character: char, max_dim: u32) -> GlyphAndInfo {
     GlyphAndInfo {
         buf,
         dims: (h_size, v_size),
-        horizontal_lines: Vec::new(),
-        vertical_lines: Vec::new(),
+        horizontal_lines,
+        vertical_lines,
     }
 }
